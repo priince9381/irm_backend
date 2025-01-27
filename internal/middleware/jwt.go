@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"irm_backend/internal/config"
-	"irm_backend/internal/config"
 	"github.com/google/uuid"
+	"github.com/priince9381/irm_backend/internal/config"
+	"github.com/priince9381/irm_backend/internal/utils"
 )
 
 type Claims struct {
@@ -99,7 +100,7 @@ func AdminMiddleware() gin.HandlerFunc {
 	}
 }
 
-func JWTAuth(cfg *config.Config) gin.HandlerFunc {
+func JWTAuth(secretKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -108,32 +109,25 @@ func JWTAuth(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
+		bearerToken := strings.Split(authHeader, " ")
+		if len(bearerToken) != 2 || bearerToken[0] != "Bearer" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
 			c.Abort()
 			return
 		}
 
-		tokenString := parts[1]
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return []byte(cfg.JWTSecret), nil
-		})
-
-		if err != nil || !token.Valid {
+		token := bearerToken[1]
+		claims, err := utils.ValidateJWT(token, secretKey)
+		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			c.Abort()
 			return
 		}
 
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
-			c.Abort()
-			return
-		}
+		// Set user ID and email in context
+		c.Set("user_id", claims.UserID)
+		c.Set("email", claims.Email)
 
-		c.Set("user_id", claims["user_id"])
 		c.Next()
 	}
 }

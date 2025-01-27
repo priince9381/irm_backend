@@ -6,11 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"irm_backend/internal/config"
-	"irm_backend/internal/models"
-
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/google/uuid"
+	"github.com/priince9381/irm_backend/internal/config"
+	"github.com/priince9381/irm_backend/internal/models"
 )
 
 type ElasticsearchDB struct {
@@ -27,7 +26,14 @@ func NewElasticsearchDB(cfg *config.Config) (*ElasticsearchDB, error) {
 		return nil, fmt.Errorf("error creating elasticsearch client: %v", err)
 	}
 
-	return &ElasticsearchDB{client: es}, nil
+	esDB := &ElasticsearchDB{client: es}
+
+	// Create all required indices
+	if err := esDB.CreateIndices(); err != nil {
+		return nil, fmt.Errorf("error creating indices: %v", err)
+	}
+
+	return esDB, nil
 }
 
 // Helper function to create index if not exists
@@ -39,6 +45,17 @@ func (es *ElasticsearchDB) createIndexIfNotExists(index string) error {
 	if res.StatusCode == 404 {
 		_, err = es.client.Indices.Create(index)
 		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CreateIndices creates all required indices
+func (es *ElasticsearchDB) CreateIndices() error {
+	indices := []string{"users", "posts"}
+	for _, index := range indices {
+		if err := es.createIndexIfNotExists(index); err != nil {
 			return err
 		}
 	}
@@ -117,7 +134,7 @@ func (es *ElasticsearchDB) CreatePost(post *models.Post) error {
 		return err
 	}
 
-	post.ID = uuid.New()
+	post.ID = uuid.New().String()
 	post.CreatedAt = time.Now()
 	post.UpdatedAt = time.Now()
 
@@ -129,7 +146,7 @@ func (es *ElasticsearchDB) CreatePost(post *models.Post) error {
 	_, err = es.client.Index(
 		"posts",
 		strings.NewReader(string(data)),
-		es.client.Index.WithDocumentID(post.ID.String()),
+		es.client.Index.WithDocumentID(post.ID),
 		es.client.Index.WithRefresh("true"),
 	)
 	return err
@@ -188,7 +205,7 @@ func (es *ElasticsearchDB) UpdatePost(post *models.Post) error {
 	_, err = es.client.Index(
 		"posts",
 		strings.NewReader(string(data)),
-		es.client.Index.WithDocumentID(post.ID.String()),
+		es.client.Index.WithDocumentID(post.ID),
 		es.client.Index.WithRefresh("true"),
 	)
 	return err
@@ -197,4 +214,91 @@ func (es *ElasticsearchDB) UpdatePost(post *models.Post) error {
 func (es *ElasticsearchDB) DeletePost(postID string) error {
 	_, err := es.client.Delete("posts", postID)
 	return err
+}
+
+// Exists checks if a document exists in the given index based on the query
+func (es *ElasticsearchDB) Exists(index string, query map[string]interface{}) (bool, error) {
+	if err := es.createIndexIfNotExists(index); err != nil {
+		return false, err
+	}
+
+	res, err := es.client.Search(
+		es.client.Search.WithIndex(index),
+		es.client.Search.WithBody(strings.NewReader(toJSON(query))),
+	)
+	if err != nil {
+		return false, err
+	}
+	defer res.Body.Close()
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return false, err
+	}
+
+	hits := result["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64)
+	return hits > 0, nil
+}
+
+// Search performs a search query on the given index
+func (es *ElasticsearchDB) Search(index string, query map[string]interface{}) ([]string, error) {
+	if es.client == nil {
+		return nil, fmt.Errorf("elasticsearch client is not initialized")
+	}
+	if err := es.createIndexIfNotExists(index); err != nil {
+		return nil, err
+	}
+
+	res, err := es.client.Search(
+		es.client.Search.WithIndex(index),
+		es.client.Search.WithBody(strings.NewReader(toJSON(query))),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	hits := result["hits"].(map[string]interface{})["hits"].([]interface{})
+	docs := make([]string, len(hits))
+	for i, hit := range hits {
+		source := hit.(map[string]interface{})["_source"]
+		docs[i] = toJSON(source)
+	}
+
+	return docs, nil
+}
+
+// Index indexes a document in Elasticsearch
+func (es *ElasticsearchDB) Index(index string, document string) (string, error) {
+	if err := es.createIndexIfNotExists(index); err != nil {
+		return "", err
+	}
+
+	id := uuid.New().String()
+	res, err := es.client.Index(
+		index,
+		strings.NewReader(document),
+		es.client.Index.WithDocumentID(id),
+	)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return "", fmt.Errorf("error indexing document: %s", res.String())
+	}
+
+	return id, nil
+}
+
+// Helper function to convert interface to JSON string
+func toJSON(v interface{}) string {
+	b, _ := json.Marshal(v)
+	return string(b)
 }

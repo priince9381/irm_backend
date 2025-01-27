@@ -3,8 +3,8 @@ package repository
 import (
 	"fmt"
 
-	"github.com/your-username/irm_backend/internal/config"
-	"github.com/your-username/irm_backend/internal/models"
+	"github.com/priince9381/irm_backend/internal/config"
+	"github.com/priince9381/irm_backend/internal/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

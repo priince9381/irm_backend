@@ -1,0 +1,42 @@
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# IDE directories
+.idea/
+.vscode/
+
+# Uploads directory
+uploads/
+
+# Go-specific ignores
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Compiled binary
+bin/
+build/
+
+# Dependency directories
+vendor/
+go.sum
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Mac system files
+.DS_Store
+
+# Backup files
+*.backup

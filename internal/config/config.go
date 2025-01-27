@@ -10,19 +10,19 @@ import (
 )
 
 type Config struct {
-	DBHost         string
-	DBPort         int
-	DBUser         string
-	DBPassword     string
-	DBName         string
-	JWTSecret      string
-	Port           string
-	Environment    string
-	RedisURL       string
-	AWSRegion      string
-	AWSBucket      string
-	AWSAccessKey   string
-	AWSSecretKey   string
+	DBHost       string
+	DBPort       int
+	DBUser       string
+	DBPassword   string
+	DBName       string
+	JWTSecret    string
+	Port         string
+	Environment  string
+	RedisURL     string
+	AWSRegion    string
+	AWSBucket    string
+	AWSAccessKey string
+	AWSSecretKey string
 
 	// Elasticsearch configuration
 	ElasticsearchURL      string `mapstructure:"ELASTICSEARCH_URL"`
@@ -31,7 +31,7 @@ type Config struct {
 }
 
 func LoadConfig() (*Config, error) {
-	if err := godotenv.Load(); err != nil {
+	if err := godotenv.Load("/home/administrator/test/irm_backend/.env"); err != nil {
 		fmt.Printf("Warning: .env file not found: %v\n", err)
 	}
 
@@ -62,6 +62,9 @@ func LoadConfig() (*Config, error) {
 	config.AWSBucket = getEnv("AWS_BUCKET", "")
 	config.AWSAccessKey = getEnv("AWS_ACCESS_KEY", "")
 	config.AWSSecretKey = getEnv("AWS_SECRET_KEY", "")
+	config.ElasticsearchURL = getEnv("ELASTICSEARCH_URL", "http://localhost:9200")
+	config.ElasticsearchUsername = getEnv("ELASTICSEARCH_USERNAME", "")
+	config.ElasticsearchPassword = getEnv("ELASTICSEARCH_PASSWORD", "")
 
 	return &config, nil
 }
