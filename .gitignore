@@ -40,3 +40,5 @@ go.sum
 
 # Backup files
 *.backup
+
+__azurite_db_table__.json
